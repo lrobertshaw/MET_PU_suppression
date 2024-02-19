@@ -6,16 +6,10 @@ import glob
 import random
 
 
-def prepareInputs(dir, subset=1, cuts=(0, 0), flatten=False, subtractMuon=True, prop=1):
+def prepareInputs(dir, subset=1, cuts=(0, 0), flatten=False, subtractMuon=True):
 
-    # Get a list of files
-    random.seed(42)
-    filesInDir = glob.glob(dir)
-    fileNames = random.sample(
-        filesInDir,
-        int(np.ceil( prop * len(filesInDir)) )
-    )
-    data = ["{fileName}:{tree}".format(fileName = f, tree = "Events;1") for f in fileNames]
+    
+    data = dir + "out_*.root:Events;1"
 
     # Read in offline and online data
     calo = readCaloData(data = data)
@@ -113,9 +107,9 @@ def cutMET(cuts, calo, oMET):
 def readCaloData(data):
     
     print("Reading in calo tower data")
-    calo_batches = [batch for batch in uproot.iterate(data, filter_name = ["L1EmulCaloTower_ieta", "L1EmulCaloTower_iet", "L1EmulCaloTower_iphi"], library = "ak")]
-    calo_ak = ak.concatenate(calo_batches)
+    calo_ak = uproot.concatenate(data, filter_name=["L1EmulCaloTower_ieta", "L1EmulCaloTower_iet", "L1EmulCaloTower_iphi"], library="ak")
     calo = ak.to_dataframe(calo_ak)
+
     """ For calo data, create new "event" column from the index, set new index as  "event, eta and phi values", store this df in new variable """
     calo['event'] = calo.index.get_level_values(0)
     calo = calo.reset_index(inplace=False)
@@ -132,54 +126,46 @@ def readCaloData(data):
     return calo
 
 
-def readPuppiData(data, subtractMu):
-    assert subtractMu == True or subtractMu == False
+def readPuppiData(data, subtractMu=True):
     
     if subtractMu == True:
         print("Reading in PUPPI MET pT and phi")
-        batches = [batch for batch in uproot.iterate(data, filter_name = ["PuppiMET_pt", "PuppiMET_phi"], library = "ak")]
-        dat_ak = ak.concatenate(batches)
-        dat = ak.to_dataframe(dat_ak)
+        puppi_ak = uproot.concatenate(data, filter_name = ["PuppiMET_pt", "PuppiMET_phi"], library="ak")
+        puppi = ak.to_dataframe(puppi_ak)
         # Get x and y components of PUPPI MET
         print("Calculating x and y components of PUPPI MET")
-        puppi_ptx, puppi_pty = np.cos(dat.PuppiMET_phi) * dat.PuppiMET_pt, np.sin(dat.PuppiMET_phi) * dat.PuppiMET_pt
+        puppi_ptx, puppi_pty = np.cos(puppi.PuppiMET_phi) * puppi.PuppiMET_pt, np.sin(puppi.PuppiMET_phi) * puppi.PuppiMET_pt
     
         # Read muon pT data
         print("Reading in muon pT and phi")
-        batches = [batch for batch in uproot.iterate(data, filter_name = ["Muon_phi", "Muon_pt", "Muon_isPFcand"], library = "ak")]
-        dat_ak = ak.concatenate(batches)
-        dat = ak.to_dataframe(dat_ak)
+        muons_ak = uproot.concatenate(data, filter_name=["Muon_phi", "Muon_pt", "Muon_isPFcand"], library="ak")
+        muons = ak.to_dataframe(muons_ak)
+
         # Create df of total muon ptx and pty for every event
-        muon_dat = {
-            "muon_ptx" : [],
-            "muon_pty" : []
-        }
         print("Calculating muon ptx and pty for each event")
-        for ev in set(dat.index.get_level_values(0)):
-            df = dat.xs(ev, level='entry')                 # Get data for every muon in event ev
-            df = df[df["Muon_isPFcand"]==True]
-            muon_ptx = np.cos(df.Muon_phi) * df.Muon_pt    # Calculate x component of pt of every muon in ev
-            muon_pty = np.sin(df.Muon_phi) * df.Muon_pt    # Calculate y component of pt of every muon in ev
-            
-            muon_dat["muon_ptx"].append(muon_ptx.sum())    # Calculate total x pt of muons in ev and append to dict
-            muon_dat["muon_pty"].append(muon_pty.sum())    # Calculate total x pt of muons in ev and append to dict
+        pfcand_muons = muons[muons["Muon_isPFcand"]]
+
+        # Calculate x and y components of pt
+        pfcand_muons['muon_ptx'] = np.cos(pfcand_muons['Muon_phi']) * pfcand_muons['Muon_pt']
+        pfcand_muons['muon_pty'] = np.sin(pfcand_muons['Muon_phi']) * pfcand_muons['Muon_pt']
         
         print("Calculating PUPPI MET no Mu and reformatting data")
-        muon_ptx_tot, muon_pty_tot = pd.Series(muon_dat["muon_ptx"]), pd.Series(muon_dat["muon_pty"])     # Convert data in dict to pandas series for computation with puppi pt series
+        muon_ptx_tot, muon_pty_tot = pd.Series(pfcand_muons.groupby(level=0)['muon_ptx'].sum()), pd.Series(pfcand_muons.groupby(level=0)['muon_pty'].sum())     # Convert data in dict to pandas series for computation with puppi pt series
         puppi_ptx_noMu, puppi_pty_noMu = puppi_ptx + muon_ptx_tot, puppi_pty + muon_pty_tot           # add muon pt to the met for both x and y componets
         puppi_METNoMu = np.sqrt((puppi_ptx_noMu)**2 + (puppi_pty_noMu)**2)      # add x and y components of met_noMu in quadrature to get overall puppi_metNoMu
-        oMET = pd.DataFrame(puppi_METNoMu, columns=["puppi_MetNoMu"], index=puppi_METNoMu.index)
-        oMET.index.name = None
-        oMET = oMET.reset_index(names="event", inplace=False)
+        puppi = pd.DataFrame(puppi_METNoMu, columns=["puppi_MetNoMu"], index=puppi_METNoMu.index)
+        puppi.index.name = None
+        puppi = puppi.reset_index(names="event", inplace=False)
     
     else:
         print("Reading in PUPPI MET pT")
-        offline_batches = [batch for batch in uproot.iterate(data, filter_name = "PuppiMET_pt", library = "pd")]
-        oMET = pd.concat(offline_batches)
-        event_col = oMET.index
-        oMET.insert(loc = 0, column="event", value=event_col)
+        puppi_ak = uproot.concatenate(data, filter_name = ["PuppiMET_pt"], library="ak")
+        puppi = ak.to_dataframe(puppi_ak)
+
+        event_col = puppi.index
+        puppi.insert(loc = 0, column="event", value=event_col)
         
-    return oMET
+    return puppi
 
 
 def compNTT4(caloTowers):
