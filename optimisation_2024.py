@@ -73,13 +73,6 @@ def applyCaloTowerThresh(caloTowers, a, b, c, d):
     
     return calcL1MET(MET), MET.astype(int)
 
-#################################################################################
-
-print("Loading data")
-data = folder + "L1Ntuple_*.root"
-fit, valid = prepareInputsOld(dir = data, subset=0.7, cuts=(0, 250))
-calo, puppi, ntt4 = fit
-
 
 def objective(params, turn_on = True):
     a, b, c, d = params
@@ -132,6 +125,11 @@ def objective(params, turn_on = True):
         print("Squared difference = {}".format(np.round(sqrd_diff,2)))
         return sqrd_diff
 
+
+print("Loading data")
+data = folder + "L1Ntuple_*.root"
+fit, valid = prepareInputsOld(dir = data, subset=0.7, cuts=(0, 250))
+calo, puppi, ntt4 = fit
 
 print("Starting optimisation")
 bounds = [(0, 4), (0, 3), (0, 4), (0, 4)]
