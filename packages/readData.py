@@ -9,7 +9,7 @@ import random
 def prepareInputs(dir, subset=1, cuts=(0, 0), flatten=False, subtractMuon=True):
 
     
-    data = dir + "out_*.root:Events;1"
+    data = dir + ":Events;1"
 
     # Read in offline and online data
     calo = readCaloData(data = data)
