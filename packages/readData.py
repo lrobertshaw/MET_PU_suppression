@@ -6,39 +6,8 @@ import glob
 import random
 
 
-def prepareInputs(dir, subset=1, cuts=(0, 0), flatten=False, subtractMuon=True):
-
-    
-    data = dir + ":Events;1"
-
-    # Read in offline and online data
-    calo = readCaloData(data = data)
-    oMET = readPuppiData(data = data, subtractMu = subtractMuon)
-    
-    # Cut MET online and offline based on cuts argument
-    if (cuts[0] != 0) and (cuts[1] != 0):
-        calo, oMET = cutMET(cuts = cuts, calo = calo, oMET = oMET)
-
-    # Flatten MET distribution at low MET to increase emphasis on higher MET region
-    if flatten != False:
-        calo, oMET = flattenMET(calo = calo, oMET = oMET, flat_params = flatten)
-
-    # Subset events into fitting and testing samples
-    fit_events, valid_events = subsetEvents(calo=calo, oMET=oMET, subset=subset)
-    
-    # Calculate NTT4
-    print("Calculating NTT4")
-    fit_calo_events, valid_calo_events = fit_events[0], valid_events[0]
-    compntt_fit, compntt_valid = compNTT4(fit_calo_events), compNTT4(valid_calo_events)
-
-    # Package and return data
-    fit_data = (fit_events[0], fit_events[1], compntt_fit)
-    valid_data = (valid_events[0], valid_events[1], compntt_valid)
-    
-    return fit_data, valid_data
-
-
 def subsetEvents(calo, oMET, subset):
+    
     print("Subsetting events")
     offlineMET_quantity = oMET.columns[-1]
     events = np.array(oMET.event)    # events is a list of all the event indices which survived the cut, so event indices 0 to 10,000, and the list is ~ 8318 long
@@ -53,35 +22,17 @@ def subsetEvents(calo, oMET, subset):
     return (fit_calo_events, fit_pfMET_events), (valid_calo_events, valid_pfMET_events)
 
 
-def flattenMET(calo, oMET, flat_params):
+def flattenMET(calo, oMET, flat_params=(0.94, 0.066, 0.04, 500)):
 
-    print ("Flattening MET distribution")
-    uniformMax, binWidth, nBinsUniform = flat_params   # uniformMax=125, binWidth=15, nBinsUniform=100
-    if isinstance(oMET, pd.Series):
-        oMET = pd.DataFrame(oMET)
-        oMET = df.reset_index(drop=False).rename(columns={"index":"event"})
-        
-    offlineVar = oMET.columns[-1]
-    n = int(len(oMET[oMET[offlineVar]>uniformMax]) - len(oMET[oMET[offlineVar]>uniformMax+binWidth]))*nBinsUniform  # Number of rows to select
-    bins = np.linspace(0, uniformMax, num=20)
-    oMET['binned'] = pd.cut(oMET[offlineVar], bins=bins, labels=False)
-    selected_rows = []
-    for i in range(n):
-        bin_rows = oMET[oMET['binned'] == i%20]
-        if len(bin_rows) > 0:
-            random_row = bin_rows.sample(1)
-            selected_rows.append(random_row)
-            oMET = oMET.drop(random_row.index)
-    selected_rows = pd.concat(selected_rows)
-    remaining_rows = oMET[oMET[offlineVar] > uniformMax]
-    selected_rows = pd.concat([selected_rows, remaining_rows])
+    a, b, c, cutoff = flat_params
+
+    rand_arr = np.random.rand(len(oMET))
+    puppi_pt = oMET['puppi_MetNoMu']
+
+    puppiflat = oMET[rand_arr[puppi_pt > 0] * (a - puppi_pt**b / cutoff**b) < c]
+    caloflat = calo[calo["event"].isin(puppiflat["event"])]
     
-    print ('N towers, offline MET before : ', len(calo))
-    calo = calo[calo["event"].isin(selected_rows)]
-    oMET = oMET[oMET["event"].isin(selected_rows)]
-    print ('N towers, offline MET after : ', len(calo))
-    
-    return calo, oMET
+    return caloflat, puppiflat
 
 def cutMET(cuts, calo, oMET):
 
@@ -230,40 +181,3 @@ def readCaloDataOld(files):
     df_calo_met = df_calo_met.drop(["entry", "subentry"], axis=1)
 
     return df_calo_met
-
-
-def prepareInputsOld(dir, subset=1, cuts=(0, 0), flatten=False, prop=1):
-
-    random.seed(42)
-    filesInDir = glob.glob(dir)
-    fileNames = random.sample(
-        filesInDir,
-        int(np.ceil( prop * len(filesInDir)) )
-    )
-
-    print("Reading PUPPI MET")
-    oMET = readPuppiDataOld(fileNames)
-    print("Reading calo data")
-    calo = readCaloDataOld(fileNames)
-    
-    # Cut MET online and offline based on cuts argument
-    if (cuts[0] != 0) and (cuts[1] != 0):
-        calo, oMET = cutMET(cuts = cuts, calo = calo, oMET = oMET)
-
-    # Flatten MET distribution at low MET to increase emphasis on higher MET region
-    if flatten != False:
-        calo, oMET = flattenMET(calo = calo, oMET = oMET, flat_params=flatten)
-
-    # Subset events into fitting and testing samples
-    fit_events, valid_events = subsetEvents(calo=calo, oMET=oMET, subset=subset)
-    
-    # Calculate NTT4
-    print("Calculating NTT4")
-    fit_calo_events, valid_calo_events = fit_events[0], valid_events[0]
-    compntt_fit, compntt_valid = compNTT4(fit_calo_events), compNTT4(valid_calo_events)
-
-    # Package and return data
-    fit_data = (fit_events[0], fit_events[1], compntt_fit)
-    valid_data = (valid_events[0], valid_events[1], compntt_valid)
-    
-    return fit_data, valid_data
