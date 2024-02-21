@@ -22,7 +22,7 @@ def subsetEvents(calo, oMET, subset):
     return (fit_calo_events, fit_pfMET_events), (valid_calo_events, valid_pfMET_events)
 
 
-def flattenMET(calo, oMET, flat_params=(0.94, 0.066, 0.04, 500)):
+def flattenMET(calo, oMET, flat_params=(0.94, 0.068, 0.05, 400)):
 
     a, b, c, cutoff = flat_params
 
@@ -33,6 +33,7 @@ def flattenMET(calo, oMET, flat_params=(0.94, 0.066, 0.04, 500)):
     caloflat = calo[calo["event"].isin(puppiflat["event"])]
     
     return caloflat, puppiflat
+
 
 def cutMET(cuts, calo, oMET):
 
@@ -181,3 +182,31 @@ def readCaloDataOld(files):
     df_calo_met = df_calo_met.drop(["entry", "subentry"], axis=1)
 
     return df_calo_met
+
+
+def towerEtThreshold(ieta, ntt4, a, b, c, d):
+    
+    pu = ntt4.copy()
+    towerAreas = [    0., # dummy for ieta=0
+                  1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,
+                  1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,
+                  1.03,1.15,1.3,1.48,1.72,2.05,1.72,4.02,
+                  0., # dummy for ieta=29
+                  3.29,2.01,2.02,2.01,2.02,2.0,2.03,1.99,2.02,2.04,2.00,3.47]
+    
+    term1 = float(towerAreas[int(abs(ieta))] ** a)
+    term2 = 1 / ( d * (1 + np.exp(-b * (abs(ieta)))) )
+    term3 = pu["ntt4"] ** c
+    
+    pu.rename(columns={"ntt4": "threshold"})
+    
+    pu["threshold"] = (term1 * term2 * term3).clip(upper=40)    # Rounding makes big difference to low Et towers as 0.6 --> 1.0 thus 0.5GeV towers no longer pass.
+    
+    return pu["threshold"].to_dict()    # Returns a vector - a threshold for every event because there's a compNTT4 value for every event
+
+
+def applyThresholds(data, thresholds):  
+    iets = np.array(data[:,0])
+    thresholds = np.array([thresholds[event] for event in data[:,1]])
+    comparison_list = iets > thresholds
+    return comparison_list
