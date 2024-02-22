@@ -1,13 +1,8 @@
 print("Importing packages")
-#import pandas as pd
 import numpy as np
-#import uproot
-#import awkward as ak
-#import glob
 from scipy.optimize import differential_evolution
 from multiprocessing import cpu_count
 from multiprocessing.pool import ThreadPool
-#import random
 import sys
 
 from packages.functions import *
