@@ -1,0 +1,4 @@
+pandas==2.1.4
+scipy==1.6.2
+uproot==5.0.13
+awkward==2.5.0

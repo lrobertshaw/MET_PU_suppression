@@ -1,21 +1,19 @@
 print("Importing packages")
-import pandas as pd
+#import pandas as pd
 import numpy as np
-import uproot
-import awkward as ak
-import glob
-from scipy.optimize import *
+#import uproot
+#import awkward as ak
+#import glob
+from scipy.optimize import differential_evolution
 from multiprocessing import cpu_count
 from multiprocessing.pool import ThreadPool
-import pickle
-import time
-import random
+#import random
 import sys
 
 from packages.functions import *
 
-global CPUs = 30 #cpu_count()
-fileName, folder = sys.argv[0], sys.argv[1]
+global CPUs
+CPUs = 30 #cpu_count()
 
 
 def prepareInputs(dir, subset=1, cuts=(0, 0), flatten=(0.94, 0.066, 0.04, 500), subtractMuon=True, oldData=False):
@@ -74,8 +72,10 @@ def applyCaloTowerThresh(caloTowers, a, b, c, d):
     return calcL1MET(MET), MET.astype(int)
 
 
-def objective(params, turn_on = True):
+def objective(params, *args):
     a, b, c, d = params
+    calo, puppi, _ = args[0]
+    turn_on, threshold, lowEff = args[1]
     print("\nCurrently trying: a = {}, b = {}, c = {} and d = {}".format(np.round(a,2), np.round(b,2), np.round(c,2), np.round(d,2)))
     MET, _ = applyCaloTowerThresh(calo, a, b, c, d)
     
@@ -120,20 +120,48 @@ def objective(params, turn_on = True):
         return(x_cross_95-x_cross_05)
     
     else:
-        difference = MET - puppi
-        sqrd_diff = np.sum(difference**2)
-        print("Squared difference = {}".format(np.round(sqrd_diff,2)))
-        return sqrd_diff
+        error = MET - puppi
+        rmse = np.sqrt(np.mean(error**2))
+        print("RMSE = {}".format(np.round(rmse,2)))
+        return rmse
 
 
-print("Loading data")
-data = folder + "L1Ntuple_*.root"
-fit, valid = prepareInputsOld(dir = data, subset=0.7, cuts=(0, 250))
-calo, puppi, ntt4 = fit
+if __name__ == "__main__":
 
-print("Starting optimisation")
-bounds = [(0, 4), (0, 3), (0, 4), (0, 4)]
-result = differential_evolution(objective, bounds, popsize=40, maxiter=100, strategy="best1bin")
+    print("Parse args")
+    
+    data = sys.argv[1]
+    
+    if sys.argv[2] == "turnon":
+        turn_on_options = (True, 80, 0.05)
+    elif sys.argv[2] == "rmse":
+        turn_on_options = (False, 0, 0)
+    else:
+        raise Exception("choose turnon or rmse")
+    
+    workers = sys.argv[3]
 
-print(result.x)
-print(result)
+    print("Loading data")
+    fit, valid = prepareInputs(dir = data, subset=0.7, cuts=(0, 250))
+
+    print("Starting optimisation")
+    bounds = [(0, 4), (0, 3), (0, 4), (0, 4)]
+    x0 = (2.0, 2.0, 0.5, 2.0)
+
+    result = differential_evolution(
+        func     = objective,
+        bounds   = bounds,
+        args     = (fit, turn_on_options),
+        
+        x0 = x0,
+        popsize  = 15,    # 15
+        maxiter  = 1000,    # 1000
+        strategy = "best1bin",    # "best1bin"
+        init     = "sobol",    #"latinhypercube"
+        disp     = True,
+        workers  = workers,    # 1
+        polish   = False
+        )
+
+    print(result.x)
+    print(result)
