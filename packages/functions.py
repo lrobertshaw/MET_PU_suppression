@@ -5,6 +5,20 @@ import awkward as ak
 import random
 
 
+def cache(mode, datCollection=None):
+
+    fileNames = ["calo", "puppi", "ntt4"]
+    if mode == "write":
+        for idx, dat in enumerate(datCollection):
+            path = "/shared/scratch/wq22321/cached_MET_data/{}.csv".format(fileNames[idx])
+            print("Writing {} to {}".format(fileNames[idx], path))
+            dat.to_csv(path_or_buf=path, index=False)
+
+    elif mode == "read":
+        dat_list = [pd.read_csv("/shared/scratch/wq22321/cached_MET_data/{}.csv".format(name)) for name in fileNames]
+        return dat_list
+
+
 def subsetEvents(calo, oMET, subset):
     
     print("Subsetting events")
@@ -209,3 +223,40 @@ def applyThresholds(data, thresholds):
     thresholds = np.array([thresholds[event] for event in data[:,1]])
     comparison_list = iets > thresholds
     return comparison_list
+
+
+def calcTurnOn(MET, puppi, threshold = 80, lowEff = 0.05):
+
+    offline_bins = np.linspace(0, 300, 31)
+
+    foundEffLow = False
+    eff_before = 0
+
+    x_cross_high = 300
+    x_cross_low = 0
+
+    for i in range(len(offline_bins) - 1):
+        offline_range = (puppi >= offline_bins[i]) & (puppi < offline_bins[i + 1])
+        num_offline = sum(offline_range)
+        num_both = sum( (MET > threshold) & offline_range )
+        eff = num_both / num_offline if num_offline > 0 else 0
+        
+        if eff >= lowEff and not foundEffLow:
+            if i > 0:
+                x_cross_low = offline_bins[i-1] + ((lowEff - eff_before) / (eff - eff_before)) * (offline_bins[i] - offline_bins[i-1])
+            else:
+                x_cross_low = offline_bins[i]
+            foundEffLow = True
+
+        if eff >= 1.0 - lowEff:
+            x_cross_high = offline_bins[i-1] + (((1.0 - lowEff) - eff_before) / (eff - eff_before)) * (offline_bins[i] - offline_bins[i-1])
+            break
+
+        eff_before = eff
+
+    return(x_cross_high - x_cross_low)
+
+
+def calcRMSE(MET, puppi):
+    error = MET - puppi
+    return np.sqrt(np.mean(error**2))
