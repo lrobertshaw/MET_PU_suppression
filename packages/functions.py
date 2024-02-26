@@ -254,7 +254,7 @@ def calcTurnOn(MET, puppi, threshold = 80, lowEff = 0.05):
 
         eff_before = eff
 
-    return(x_cross_high - x_cross_low)
+    return x_cross_high - x_cross_low
 
 
 def calcRMSE(MET, puppi):
