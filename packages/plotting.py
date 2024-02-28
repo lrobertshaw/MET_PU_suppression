@@ -55,3 +55,32 @@ def lookup_gen(a, b, c, d):
             res.append((ieta, pu_bin, thresh))
             
     return res
+
+
+def getResidual( online, offline ) :
+    offline_bins = np.linspace(0, 300, 31)
+
+    q68s = []
+    q95s = []
+    responses = []
+    resolutions = []
+    for i in range(len(offline_bins) - 1):
+        # Define the offline range for this bin
+        offline_range = (offline >= offline_bins[i]) & (offline < offline_bins[i + 1]) #& (online < 1000)
+        offline_inBin = offline[offline_range]
+        online_inBin = online[offline_range]
+        res = (offline_inBin-online_inBin)
+        # residual.append(res)
+        q68 = np.percentile(res, [16, 84])
+        q95 = np.percentile(res, [2.5, 97.5])
+        # print (offline_bins[i], offline_bins[i+1], np.abs(q68[0]-q68[1] ))
+        q68s.append( np.abs(q68[0]-q68[1] ) )
+        q95s.append( np.abs(q95[0]-q95[1] ) )
+
+        responses.append( np.mean(online_inBin/offline_inBin) )
+        resolutions.append( np.mean((online_inBin-offline_inBin)/offline_inBin) )
+        # print (online_range)
+    # print (efficiency)
+    bin_centers = (offline_bins[:-1] + offline_bins[1:]) / 2
+
+    return bin_centers, q68s, q95s, responses, resolutions

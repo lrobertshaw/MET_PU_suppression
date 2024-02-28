@@ -89,13 +89,15 @@ if __name__ == "__main__":
     data = sys.argv[1]
     
     if sys.argv[2] == "turnon":
-        turn_on_options = (True, 80, 0.10)
+        turnon_lowEff = float(sys.argv[3])
+        turnon_threshold = int(sys.argv[4])
+        turn_on_options = (True, turnon_threshold, turnon_lowEff)
     elif sys.argv[2] == "rmse":
         turn_on_options = (False, 0, 0)
     else:
         raise Exception("choose turnon or rmse")
     
-    workers = sys.argv[3]
+    workers = sys.argv[5]
 
     print("Loading data")
     fit, _ = prepareInputs(dir = data, subset=1.0, cuts=(0, 300))
