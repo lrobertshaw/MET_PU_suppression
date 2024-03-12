@@ -45,7 +45,9 @@ def prepareInputs(dir, subset=1, cuts=(0, 0), flatten=(0.94, 0.066, 0.04, 500), 
     return fit_data, valid_data
 
 
-def applyCaloTowerThresh(caloTowers, a, b, c, d):
+def applyCaloTowerThresh(caloTowers, params):
+    if splitEta==True:
+        barrelParams, endcapParams, forwardParams = params[0:4], params[4:8], params[8:12]
     
     caloTowersPUsup = caloTowers.copy()
     compntt = compNTT4(caloTowersPUsup)
@@ -56,7 +58,15 @@ def applyCaloTowerThresh(caloTowers, a, b, c, d):
         towers = caloTowersPUsup[caloTowersPUsup["ieta"] == ieta].to_numpy()    # Convert pandas dataframe to numpy array
         negtowers = caloTowersPUsup[caloTowersPUsup["ieta"] == ieta].to_numpy()
         
-        thresholds = towerEtThreshold(ieta, compntt, a, b, c, d)    # Does compntt need to be calculated in the function so calculated for every thread?
+        if 0 <= abs(ieta) <= 16:
+            thresholds = towerEtThreshold(ieta, compntt, barrelParams)    # Does compntt need to be calculated in the function so calculated for every thread?
+        elif 16 < abs(ieta) <= 28:
+            thresholds = towerEtThreshold(ieta, compntt, endcapParams if splitEta==True else params)    # Does compntt need to be calculated in the function so calculated for every thread?
+        elif 28 < abs(ieta) <= 41:
+            thresholds = towerEtThreshold(ieta, compntt, forwardParams if splitEta==True else params)    # Does compntt need to be calculated in the function so calculated for every thread?
+        else:
+            raise Exception("Unexpected ieta value: {}".format(ieta))
+        #thresholds = towerEtThreshold(ieta, compntt, a, b, c, d)    # Does compntt need to be calculated in the function so calculated for every thread?
         
         passed_tows = applyThresholds(towers[:, [2,3]], thresholds )
         passed_negtows = applyThresholds(negtowers[:, [2,3]], thresholds )
@@ -75,12 +85,11 @@ def applyCaloTowerThresh(caloTowers, a, b, c, d):
 
 def objective(params, *args):
     
-    a, b, c, d = params
     calo, puppi, _ = args[0]
     turn_on, threshold, lowEff = args[1]
 
-    print("\nCurrently trying: a = {}, b = {}, c = {} and d = {}".format(np.round(a,2), np.round(b,2), np.round(c,2), np.round(d,2)))
-    MET, _ = applyCaloTowerThresh(calo, a, b, c, d)
+    #print("\nCurrently trying: a = {}, b = {}, c = {} and d = {}".format(np.round(a,2), np.round(b,2), np.round(c,2), np.round(d,2)))
+    MET, _ = applyCaloTowerThresh(calo, params=params)
     
     res = calcTurnOn(MET=MET, puppi=puppi, threshold=threshold, lowEff=lowEff) if turn_on == True else calcRMSE(MET=MET, puppi=puppi)
     print("{var}: {val}".format(var = "Width" if turn_on==True else "RMSE", val = res))
@@ -105,6 +114,9 @@ if __name__ == "__main__":
     
     workers = sys.argv[5]
 
+    global splitEta
+    splitEta = sys.argv[6]
+
     print("Loading data")
     fit, _ = prepareInputs(dir = data, subset=1.0, cuts=(0, 300))
 
@@ -114,10 +126,10 @@ if __name__ == "__main__":
 
     result = differential_evolution(
         func     = objective,
-        bounds   = bounds,
+        bounds   = bounds*3 if splitEta == True else bounds,
         args     = (fit, turn_on_options),
         
-        x0 = x0,
+        x0 = x0*3 if splitEta == True else x0,
         popsize  = 15,    # 15
         maxiter  = 1000,    # 1000
         strategy = "best1bin",    # "best1bin"
