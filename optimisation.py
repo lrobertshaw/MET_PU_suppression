@@ -50,14 +50,20 @@ def applyCaloTowerThresh(caloTowers, a, b, c, d):
     caloTowersPUsup = caloTowers.copy()
     compntt = compNTT4(caloTowersPUsup)
     MET = np.empty((0, 4))
-    ietas = np.unique(caloTowersPUsup["ieta"][caloTowersPUsup["ieta"] != 0])    # Create unique list of all eta
+    ietas = np.unique(abs(caloTowersPUsup["ieta"][caloTowersPUsup["ieta"] != 0]))    # Create unique list of all eta
     
     def process_ieta(ieta):
         towers = caloTowersPUsup[caloTowersPUsup["ieta"] == ieta].to_numpy()    # Convert pandas dataframe to numpy array
+        negtowers = caloTowersPUsup[caloTowersPUsup["ieta"] == ieta].to_numpy()
+        
         thresholds = towerEtThreshold(ieta, compntt, a, b, c, d)    # Does compntt need to be calculated in the function so calculated for every thread?
+        
         passed_tows = applyThresholds(towers[:, [2,3]], thresholds )
+        passed_negtows = applyThresholds(negtowers[:, [2,3]], thresholds )
+
         towers[:,2] = towers[:,2].astype(float) * passed_tows
-        return towers
+        negtowers[:,2] = negtowers[:,2].astype(float) * passed_negtows
+        return np.concatenate([towers, negtowers])
 
     with ThreadPool(CPUs) as pool:
         towers_list = pool.map(process_ieta, ietas)
