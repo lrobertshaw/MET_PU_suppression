@@ -24,7 +24,7 @@ def getTurnOn( online, offline, threshold=80 ) :
     return bin_centers, efficiency
 
 
-def threshold_calc(ieta, ntt4, a, b, c, d):
+def threshold_calc(ieta, ntt4, a, b, c, d, scale=False):
     towerAreas = [    0., # dummy for ieta=0
                   1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,
                   1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,
@@ -38,7 +38,7 @@ def threshold_calc(ieta, ntt4, a, b, c, d):
     threshold = (numerator / denominator).clip(max=40)
 #    return (threshold/2)# / towerAreas[int(abs(ieta))]
     if towerAreas[int(abs(ieta))] == 0:
-        return np.nan
+        return 0
     else:
         return (threshold/2)# / towerAreas[int(abs(ieta))]
     
