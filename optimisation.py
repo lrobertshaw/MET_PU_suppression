@@ -45,7 +45,7 @@ def prepareInputs(dir, subset=1, cuts=(0, 0), flatten=(0.94, 0.066, 0.04, 500), 
     return fit_data, valid_data
 
 
-def applyCaloTowerThresh(caloTowers, params):
+def applyCaloTowerThresh(caloTowers, params, splitEta=False):
     if splitEta==True:
         barrelParams, endcapParams, forwardParams = params[0:4], params[4:8], params[8:12]
     
@@ -56,10 +56,10 @@ def applyCaloTowerThresh(caloTowers, params):
     
     def process_ieta(ieta):
         towers = caloTowersPUsup[caloTowersPUsup["ieta"] == ieta].to_numpy()    # Convert pandas dataframe to numpy array
-        negtowers = caloTowersPUsup[caloTowersPUsup["ieta"] == ieta].to_numpy()
+        negtowers = caloTowersPUsup[caloTowersPUsup["ieta"] == -1*ieta].to_numpy()
         
         if 0 <= abs(ieta) <= 16:
-            thresholds = towerEtThreshold(ieta, compntt, barrelParams)    # Does compntt need to be calculated in the function so calculated for every thread?
+            thresholds = towerEtThreshold(ieta, compntt, barrelParams if splitEta==True else params)    # Does compntt need to be calculated in the function so calculated for every thread?
         elif 16 < abs(ieta) <= 28:
             thresholds = towerEtThreshold(ieta, compntt, endcapParams if splitEta==True else params)    # Does compntt need to be calculated in the function so calculated for every thread?
         elif 28 < abs(ieta) <= 41:
@@ -89,7 +89,7 @@ def objective(params, *args):
     turn_on, threshold, lowEff = args[1]
 
     #print("\nCurrently trying: a = {}, b = {}, c = {} and d = {}".format(np.round(a,2), np.round(b,2), np.round(c,2), np.round(d,2)))
-    MET, _ = applyCaloTowerThresh(calo, params=params)
+    MET, _ = applyCaloTowerThresh(calo, params=params, splitEta=args[2])
     
     res = calcTurnOn(MET=MET, puppi=puppi, threshold=threshold, lowEff=lowEff) if turn_on == True else calcRMSE(MET=MET, puppi=puppi)
     print("{var}: {val}".format(var = "Width" if turn_on==True else "RMSE", val = res))
@@ -112,10 +112,9 @@ if __name__ == "__main__":
     else:
         raise Exception("choose turnon or rmse")
     
-    workers = sys.argv[5]
+    workers = int(sys.argv[5])
 
-    global splitEta
-    splitEta = sys.argv[6]
+    splitEta = bool(sys.argv[6])
 
     print("Loading data")
     fit, _ = prepareInputs(dir = data, subset=1.0, cuts=(0, 300))
@@ -127,7 +126,7 @@ if __name__ == "__main__":
     result = differential_evolution(
         func     = objective,
         bounds   = bounds*3 if splitEta == True else bounds,
-        args     = (fit, turn_on_options),
+        args     = (fit, turn_on_options, splitEta),
         
         x0 = x0*3 if splitEta == True else x0,
         popsize  = 15,    # 15
