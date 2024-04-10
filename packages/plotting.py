@@ -1,6 +1,5 @@
 import numpy as np
 
-
 def getTurnOn( online, offline, threshold=80 ) :
     offline_bins = np.linspace(0, 300, 31)
     efficiency = []
@@ -41,20 +40,37 @@ def threshold_calc(ieta, ntt4, a, b, c, d, scale=False):
         return 0
     else:
         return (threshold/2)# / towerAreas[int(abs(ieta))]
-    
 
-def lookup_gen(a, b, c, d):
+
+def lookup_gen(params, splitEta=False):
     
-    all_ieta_vals = np.linspace(-41, 41, 83)
     all_pu_bins = np.linspace(0, 31, 32)
+
+    if splitEta==True:
+        barrel_ieta, endcap_ieta, forward_ieta = np.linspace(0, 16, 17), np.linspace(17, 28, 12), np.linspace(29, 41, 13)
+        res = []
+        for ieta in barrel_ieta:
+            for pu_bin in all_pu_bins:
+                thresh = threshold_calc(ieta, pu_bin, *params[:4])
+                res.append((ieta, pu_bin, thresh))
+        for ieta in endcap_ieta:
+            for pu_bin in all_pu_bins:
+                thresh = threshold_calc(ieta, pu_bin, *params[4:8])
+                res.append((ieta, pu_bin, thresh))
+        for ieta in forward_ieta:
+            for pu_bin in all_pu_bins:
+                thresh = threshold_calc(ieta, pu_bin, *params[8:])
+                res.append((ieta, pu_bin, thresh))
+        return res
     
-    res = []
-    for ieta in all_ieta_vals:
-        for pu_bin in all_pu_bins:
-            thresh = threshold_calc(ieta, pu_bin, a, b, c, d)
-            res.append((ieta, pu_bin, thresh))
-            
-    return res
+    else:
+        all_ieta_vals = np.linspace(0, 41, 42)
+        res = []
+        for ieta in all_ieta_vals:
+            for pu_bin in all_pu_bins:
+                thresh = threshold_calc(ieta, pu_bin, *params)
+                res.append((ieta, pu_bin, thresh))
+        return res
 
 
 def getResidual( online, offline ) :

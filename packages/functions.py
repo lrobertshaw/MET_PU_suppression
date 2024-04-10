@@ -197,8 +197,8 @@ def readCaloDataOld(files):
     return df_calo_met
 
 
-def towerEtThreshold(ieta, ntt4, a, b, c, d):
-    
+def towerEtThreshold(ieta, ntt4, params):
+    a, b, c, d = params
     pu = ntt4.copy()
     towerAreas = [    0., # dummy for ieta=0
                   1.,1.,1.,1.,1.,1.,1.,1.,1.,1.,
